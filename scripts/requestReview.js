@@ -1,4 +1,4 @@
-function waitForElement(selector, timeout = 1000) {
+function waitForElement(selector, timeout = 500) {
   return new Promise((resolve, reject) => {
     const observer = new MutationObserver((mutations, obs) => {
       const element = document.querySelector(selector);
@@ -13,7 +13,6 @@ function waitForElement(selector, timeout = 1000) {
       subtree: true,
     });
 
-    // Timeout to reject the promise if the element is not found within the given time
     setTimeout(() => {
       observer.disconnect();
       reject(
@@ -35,7 +34,6 @@ waitForElement('[data-test-id="plugin-button-requestAReview"] a')
   })
   .catch((error) => {
     console.error(error.message);
-    // Optionally, send an error message to the background script
     chrome.runtime.sendMessage({ action: "logError", error: error.message });
     chrome.runtime.sendMessage({ action: "closeRequestWindow" });
   });

@@ -1,5 +1,8 @@
 const INTERVALBEFOREREQUEST = 14;
 
+let validReviewRequests = 0;
+let invalidReviewRequests = 0;
+
 // Function to check if within parsing date range
 function validDate(dateDiv) {
   if (dateDiv) {
@@ -11,22 +14,11 @@ function validDate(dateDiv) {
       const currentDate = new Date();
       const diffTime = Math.abs(currentDate - extractedDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      console.log(diffDays);
+      //console.log(diffDays);
       return diffDays >= INTERVALBEFOREREQUEST;
     }
   }
   return false;
-}
-
-async function processTable(tbody) {
-  if (tbody) {
-    //let i = 0;
-    for (const tr of tbody.querySelectorAll("tr")) {
-      //i++;
-      await processRow(tr); // Wait for each row to be processed before moving to the next
-      //if(i > 20) break;
-    }
-  }
 }
 
 async function processRow(tr) {
@@ -44,6 +36,7 @@ async function processRow(tr) {
     validDate(orderDate) &&
     !orderRefunded
   ) {
+    validReviewRequests++;
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
@@ -51,14 +44,27 @@ async function processRow(tr) {
           url: orderLink.firstChild.href,
         },
         () => {
-          resolve(); // Resolve the promise once the message is sent
+          resolve();
         }
       );
     });
+  } else {
+    invalidReviewRequests++;
   }
 }
 
-// Function to create and style the new button
+async function processTable(tbody) {
+  if (tbody) {
+    //let i = 0;
+    // console.log(tbody);
+    for (const tr of tbody.querySelectorAll("tr")) {
+      //i++;
+      await processRow(tr);
+      //if (i > 5) break;
+    }
+  }
+}
+
 function createButton() {
   let newButton = document.createElement("span");
   newButton.innerHTML = `
@@ -69,30 +75,46 @@ function createButton() {
   newButton.className = "a-button";
   newButton.style.backgroundColor = "#F05B42";
 
-  // Add event listener for your script
   newButton.addEventListener("click", () => {
-    console.log("New button clicked");
-
+    validReviewRequests = 0;
+    invalidReviewRequests = 0;
     // script portion
-    processTable(document.querySelector("tbody"));
+    processTable(document.querySelector("#orders-table tbody")).then(() => {
+      // now that all reviews have been processed, inject action report under the order buttons
+      let reportTable = document.createElement("table");
+      reportTable.innerHTML = `
+      <ul>
+        <li><strong>Bulk Review Request Complete ✅</strong>
+            <ul>
+                <li><strong>Review Requests Processed:</strong> ${validReviewRequests}</li>
+                <li><strong>Review Requests Skipped:</strong> ${invalidReviewRequests}</li>
+            </ul>
+        </li>
+      </ul>
+      `;
+      reportTable.id = "inserted-report-chrome-tool";
+      let appendTarget = document.querySelector("#inserted-report-chrome-tool");
+      if (!appendTarget) {
+        appendTarget = document.querySelector("#myo-sorting-bar");
+        appendTarget.appendChild(reportTable);
+      } else {
+        appendTarget.replaceWith(reportTable);
+      }
+    });
   });
 
   return newButton;
 }
 
-// Function to insert the new button
 function insertButton() {
   let targetDiv = document.querySelector("div.push-right");
   if (targetDiv) {
-    targetDiv.appendChild(createButton()); // Append the new button to the div
+    targetDiv.appendChild(createButton());
   }
 }
 
-// Execute the insertion function when the DOM is fully loaded
 if (document.readyState === "loading") {
-  // Loading hasn't finished yet
   document.addEventListener("DOMContentLoaded", insertButton);
 } else {
-  // `DOMContentLoaded` has already fired
   insertButton();
 }
